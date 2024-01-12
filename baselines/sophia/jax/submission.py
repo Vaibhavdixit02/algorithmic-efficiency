@@ -131,19 +131,19 @@ def init_optimizer_state(workload: spec.Workload,
 
   hyperparameters = HPARAMS
   print(hyperparameters)
-  def jax_cosine_warmup(step_hint: int, hyperparameters):
-    # Create learning rate schedule.
-    warmup_steps = int(hyperparameters.warmup_factor * step_hint)
-    warmup_fn = optax.linear_schedule(
-        init_value=0.,
-        end_value=hyperparameters.learning_rate,
-        transition_steps=warmup_steps)
-    cosine_steps = max(step_hint - warmup_steps, 1)
-    cosine_fn = optax.cosine_decay_schedule(
-        init_value=hyperparameters.learning_rate, decay_steps=cosine_steps)
-    schedule_fn = optax.join_schedules(
-        schedules=[warmup_fn, cosine_fn], boundaries=[warmup_steps])
-    return schedule_fn
+  # def jax_cosine_warmup(step_hint: int, hyperparameters):
+  #   # Create learning rate schedule.
+  #   warmup_steps = int(hyperparameters.warmup_factor * step_hint)
+  #   warmup_fn = optax.linear_schedule(
+  #       init_value=0.,
+  #       end_value=hyperparameters.learning_rate,
+  #       transition_steps=warmup_steps)
+  #   cosine_steps = max(step_hint - warmup_steps, 1)
+  #   cosine_fn = optax.cosine_decay_schedule(
+  #       init_value=hyperparameters.learning_rate, decay_steps=cosine_steps)
+  #   schedule_fn = optax.join_schedules(
+  #       schedules=[warmup_fn, cosine_fn], boundaries=[warmup_steps])
+  #   return schedule_fn
 
   # Create optimizer + LR schedule.
   # lr_schedule_fn = jax_cosine_warmup(workload.step_hint * 0.75, hyperparameters)
