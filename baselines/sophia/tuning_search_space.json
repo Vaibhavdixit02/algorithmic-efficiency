@@ -24,5 +24,8 @@
     },
     "warmup_factor": {
         "feasible_points": [0.05]
+    },
+    "k": {
+        "feasible_points":[10]
     }
 }

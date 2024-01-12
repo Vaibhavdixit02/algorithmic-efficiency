@@ -26,17 +26,6 @@ from algorithmic_efficiency import spec
 
 _GRAD_CLIP_EPS = 1e-6
 
-HPARAMS = {
-    "learning_rate": 1e-4,
-    "b1": 0.965,
-    "b2": 0.99,
-    "rho": 0.04,
-    "weight_decay": 1e-1,
-    "k": 100,
-    "warmup_factor": 0.02
-}
-
-
 def sophia(
     learning_rate: Union[float, optax.Schedule],
     b1: float = 0.965,
@@ -68,17 +57,17 @@ def scale_by_sophia(b1: float = 0.965,
 
   def update_fn(updates, state, params=None):
     del params
-    mu = _update_moment(updates, state.mu, b1, 1)
-    if state.count % k == 0:
-      state.h = _update_hess(updates, state.h, b2, state.count)
-    nu = _update_moment(updates, state.nu, b2, 2)
+    m = _update_moment(updates, state.m, b1, 1)
+    if state.count % k == 1:
+      h = _update_hess(updates, state.h, b2, state.count)
+    else:
+      h = state.h
+
     count = state.count + jnp.array(1, dtype=jnp.int32)
-    mu_hat = _update_moment(updates, mu, b1, 1)
-    mu_hat = mu_hat if not debias else _bias_correction(mu_hat, b1, count)
-    nu_hat = nu if not debias else _bias_correction(nu, b2, count)
+    m_hat = _update_moment(updates, m, b1, 1)
     updates = jax.tree_map(
-        lambda m, v: m / (raise_power(v + eps_root) + eps), mu_hat, nu_hat)
-    return updates, ScaleByAdamState(count=count, mu=mu, nu=nu)
+        lambda m: m / (raise_power(v + eps_root) + eps), m_hat)
+    return updates, ScaleBySophiaState(count=count, m=m, g=g, h=h)
 
   return optax.GradientTransformation(init_fn, update_fn)
 
@@ -127,9 +116,7 @@ def init_optimizer_state(workload: spec.Workload,
   del model_params
   del model_state
   del rng
-  del hyperparameters
 
-  hyperparameters = HPARAMS
   print(hyperparameters)
   # def jax_cosine_warmup(step_hint: int, hyperparameters):
   #   # Create learning rate schedule.
@@ -165,7 +152,7 @@ def init_optimizer_state(workload: spec.Workload,
 @functools.partial(
     jax.pmap,
     axis_name='batch',
-    in_axes=(None, None, 0, 0, 0, 0, 0, None),
+    in_axes=(None, None, 0, 0, 0, 0, 0, None, None),
     static_broadcasted_argnums=(0, 1),
     donate_argnums=(2, 3, 4))
 def pmapped_train_step(workload,
@@ -175,7 +162,8 @@ def pmapped_train_step(workload,
                        current_param_container,
                        batch,
                        rng,
-                       grad_clip):
+                       grad_clip,
+                       label_smoothing):
     def _loss_fn(params):
         """Loss function used for training."""
         logits, new_model_state = workload.model_fn(
@@ -188,7 +176,8 @@ def pmapped_train_step(workload,
         loss_dict = workload.loss_fn(
             label_batch=batch['targets'],
             logits_batch=logits,
-            mask_batch=batch.get('weights'))
+            mask_batch=batch.get('weights'),
+            label_smoothing=label_smoothing)
         summed_loss = loss_dict['summed']
         n_valid_examples = loss_dict['n_valid_examples']
         return summed_loss, (n_valid_examples, new_model_state)
@@ -228,9 +217,7 @@ def update_params(workload: spec.Workload,
                   global_step: int,
                   rng: spec.RandomState) -> spec.UpdateReturn:
     """Return (updated_optimizer_state, updated_params, updated_model_state)."""
-    del current_params_types, loss_type, eval_results, hyperparameters
-
-    hyperparameters = HPARAMS
+    del current_params_types, loss_type, eval_results
 
     optimizer_state, opt_update_fn = optimizer_state
     per_device_rngs = jax.random.split(rng, jax.local_device_count())
