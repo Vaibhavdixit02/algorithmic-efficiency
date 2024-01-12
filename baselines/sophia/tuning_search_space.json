@@ -1,0 +1,28 @@
+{
+    "learning_rate": {
+        "min": 1e-5, 
+        "max": 1e-2, 
+        "scaling": "log"
+    },
+    "b1": {
+        "min": 0.9, 
+        "max": 0.98, 
+        "scaling": "linear"
+    },
+    "b2": {
+        "feasible_points": [0.99, 0.995, 0.999]
+    },
+    "rho": {
+        "min": 0.01, 
+        "max": 0.1, 
+        "scaling": "linear"
+    },
+    "weight_decay": {
+        "min": 1e-5, 
+        "max": 1e-1, 
+        "scaling": "log"
+    },
+    "warmup_factor": {
+        "feasible_points": [0.05]
+    }
+}
